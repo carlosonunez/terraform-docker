@@ -1,0 +1,30 @@
+---
+name: Deploy expensify-processor
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Install Docker Compose
+        run: curl -L ${DOCKER_COMPOSE_URL}/docker-compose-`uname -s`-`uname -m` > ./docker-compose &&
+             chmod +x ./docker-compose
+        env:
+          DOCKER_COMPOSE_URL: https://github.com/docker/compose/releases/download/1.29.0
+
+      - name: Install yq
+        run: pip install yq
+
+      - name: Decrypt environment file
+        run: ./docker-compose -f docker-compose.ci.yml run --rm decrypt-env
+        env:
+          ENV_PASSWORD: ${{ secrets.env_file_encryption_key }}
+
+      - name: Deploy expensify-processor
+        run: make deploy_production
+        env:
+          ENV_PASSWORD: ${{ secrets.env_file_encryption_key }}

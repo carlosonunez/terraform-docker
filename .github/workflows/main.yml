@@ -1,5 +1,5 @@
 ---
-name: Build Terraform Docker Images
+name: Monitor for Terraform Docker Images Needing Build
 on:
   push:
     branches:
@@ -25,5 +25,5 @@ jobs:
         env:
           ENV_PASSWORD: ${{ secrets.env_file_encryption_key }}
 
-      - name: Build Docker images!
-        run: ./build.sh
+      - name: Run new version monitor
+        run: ./build.sh --alert-only

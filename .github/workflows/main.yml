@@ -1,6 +1,8 @@
 ---
 name: Monitor for Terraform Docker Images Needing Build
 on:
+  schedule:
+  - cron: "* * */1 * *"
   push:
     branches:
       - main

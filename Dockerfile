@@ -9,6 +9,9 @@ ARG ARCH
 ARG VERSION
 ENV TERRAFORM_URL="https://releases.hashicorp.com/terraform/$VERSION/terraform_${VERSION}_linux_${ARCH}.zip"
 
+RUN apt -y update
+RUN apt -y install git wget
+
 RUN curl -o /terraform.zip "$TERRAFORM_URL" && \
   unzip /terraform.zip && \
   chmod +x /terraform

@@ -14,6 +14,7 @@ RUN apt -y install git wget
 
 RUN curl -o /terraform.zip "$TERRAFORM_URL" && \
   unzip /terraform.zip && \
-  chmod +x /terraform
+  chmod +x /terraform && \
+  mv /terraform /usr/local/bin
 
-ENTRYPOINT [ "/terraform" ]
+ENTRYPOINT [ "terraform" ]

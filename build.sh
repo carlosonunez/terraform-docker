@@ -10,6 +10,7 @@ fi
 DOCKER_HUB_USERNAME="${DOCKER_HUB_USERNAME?Please provide the username to Docker Hub.}"
 DOCKER_HUB_PASSWORD="${DOCKER_HUB_PASSWORD?Please provide the password to Docker Hub.}"
 DOCKER_HUB_REPO="${DOCKER_HUB_REPO:-$DOCKER_HUB_USERNAME/terraform}"
+REBUILD="${REBUILD:-false}"
 # This was the first publicly-available version with ARM-compiled builds
 MIN_TERRAFORM_MAJOR_VERSION=0
 MIN_TERRAFORM_MINOR_VERSION=13
@@ -50,6 +51,11 @@ get_existing_docker_image_tags() {
 }
 
 image_already_exists() {
+  if grep -Eiq '^true$' <<< "$REBUILD"
+  then
+    >&2 echo "INFO: Skipping existing image check, as REBUILD=true"
+    return 1
+  fi
   grep -q "$1" <<< "$2"
 }
 
@@ -75,25 +81,41 @@ build_and_push_new_image() {
   }
 
   version="$1"
+  is_latest="${2:-false}"
   for arch in arm64 amd64
   do
-    image_name="$DOCKER_HUB_REPO:${version}-${arch}"
-    >&2 echo "INFO: Building Terraform v$version $arch"
-    if ! ( _build && _push )
+    if test "$is_latest" == "true"
     then
-      >&2 echo "ERROR: Failed to build and push version $version; stopping"
-      exit 1
+      >&2 echo "INFO: Tagging Terraform version [$version] as latest"
+      image_name="$DOCKER_HUB_REPO:latest"
+      docker tag "$DOCKER_HUB_REPO:$version" "$image_name" && _push "$image_name"
+    else
+      image_name="$DOCKER_HUB_REPO:${version}-${arch}"
+      >&2 echo "INFO: Building Terraform v$version $arch"
+      if ! ( _build && _push )
+      then
+        >&2 echo "ERROR: Failed to build and push version $version; stopping"
+        exit 1
+      fi
     fi
   done
 
-  _push_linked_manifest "$version"
+  test "$is_latest" == "true" || _push_linked_manifest "$version"
 }
 
 log_into_docker_hub_or_fail
 existing_tags=$(get_existing_docker_image_tags)
 versions_needing_an_image=""
+first_image_in_list=true
+latest_version=""
 while read -r version
 do
+  if test "$first_image_in_list" == "true"
+  then
+    >&2 echo "INFO: Latest Terraform version is $version"
+    latest_version="$version"
+    first_image_in_list=false
+  fi
   ! version_is_supported "$version" && continue
   if ! image_already_exists "$version" "$existing_tags"
   then
@@ -107,6 +129,7 @@ do
     >&2 echo "INFO: Docker image already exists for Terraform v$version"
   fi
 done <<< "$(get_terraform_versions)"
+build_and_push_new_image "$latest_version" "true"
 
 # GitHub Actions doesn't support ARM runners, and spinning one up in AWS that does nothing
 # is a waste of money. Instead, alert me when a new version comes out so I can run this script.

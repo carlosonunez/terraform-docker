@@ -9,7 +9,7 @@ fi
 
 DOCKER_HUB_USERNAME="${DOCKER_HUB_USERNAME?Please provide the username to Docker Hub.}"
 DOCKER_HUB_PASSWORD="${DOCKER_HUB_PASSWORD?Please provide the password to Docker Hub.}"
-DOCKER_HUB_REPO="${DOCKER_HUB_REPO:-$DOCKER_HUB_USERNAME/terraform}"
+DOCKER_HUB_REPO="${DOCKER_HUB_REPO:-$DOCKER_HUB_USERNAME}/terraform"
 REBUILD="${REBUILD:-false}"
 # This was the first publicly-available version with ARM-compiled builds
 MIN_TERRAFORM_MAJOR_VERSION=0
@@ -62,9 +62,10 @@ image_already_exists() {
 build_and_push_new_image() {
   _build() {
     docker build -t "$image_name" \
+      --pull \
       --platform "$arch" \
       --build-arg VERSION="$version" \
-      --build-arg ARCH="$arch" .
+      --build-arg ARCH="$(echo "$arch" | cut -f2 -d '/')" .
   }
 
   _push() {
@@ -73,30 +74,38 @@ build_and_push_new_image() {
 
   _push_linked_manifest() {
     version="$1"
-    unified_tag="$DOCKER_HUB_REPO:$version"
+    is_latest="${2:-false}"
+    version_tag="${DOCKER_HUB_REPO}:$version"
+    if grep -Eiq '^true$' <<< "$is_latest"
+    then
+      unified_tag="$DOCKER_HUB_REPO:latest"
+    else
+      unified_tag="$version_tag"
+    fi
     docker manifest create "$unified_tag" \
-      --amend "${unified_tag}-amd64" \
-      --amend "${unified_tag}-arm64" &&
+      --amend "${version_tag}-amd64" \
+      --amend "${version_tag}-arm64" &&
     docker manifest push "$unified_tag"
   }
 
   version="$1"
   is_latest="${2:-false}"
-  for arch in arm64 amd64
+  if test "$is_latest" == "true"
+  then
+    >&2 echo "INFO: Tagging Terraform version [$version] as latest"
+    image_name="$DOCKER_HUB_REPO:latest"
+    docker tag "$DOCKER_HUB_REPO:$version" "$image_name" && \
+      _push_linked_manifest "$version" "$is_latest"
+    return 0
+  fi
+  for arch in linux/arm64 linux/amd64
   do
-    if test "$is_latest" == "true"
+    image_name="$DOCKER_HUB_REPO:${version}-$(echo "$arch" | cut -f2 -d '/')"
+    >&2 echo "INFO: Building Terraform v$version $arch"
+    if ! ( _build && _push )
     then
-      >&2 echo "INFO: Tagging Terraform version [$version] as latest"
-      image_name="$DOCKER_HUB_REPO:latest"
-      docker tag "$DOCKER_HUB_REPO:$version" "$image_name" && _push "$image_name"
-    else
-      image_name="$DOCKER_HUB_REPO:${version}-${arch}"
-      >&2 echo "INFO: Building Terraform v$version $arch"
-      if ! ( _build && _push )
-      then
-        >&2 echo "ERROR: Failed to build and push version $version; stopping"
-        exit 1
-      fi
+      >&2 echo "ERROR: Failed to build and push version $version; stopping"
+      exit 1
     fi
   done
 

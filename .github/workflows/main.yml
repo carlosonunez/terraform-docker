@@ -29,7 +29,7 @@ jobs:
 
       - name: Set up QEMU - arm
         if: ${{ runner.arch != 'ARM64' }}
-        id: qemu
+        id: qemu-arm64
         uses: docker/setup-qemu-action@v1
         with:
           image: tonistiigi/binfmt:latest
@@ -37,7 +37,7 @@ jobs:
 
       - name: Set up QEMU - x86
         if: ${{ runner.arch != 'X64' || runner.arch != 'X86' }}
-        id: qemu
+        id: qemu-x86_64
         uses: docker/setup-qemu-action@v1
         with:
           image: tonistiigi/binfmt:latest

@@ -128,12 +128,7 @@ do
   ! version_is_supported "$version" && continue
   if ! image_already_exists "$version" "$existing_tags"
   then
-    if test "$1" == "--alert-only"
-    then
-      versions_needing_an_image="$versions_needing_an_image,$version"
-    else
       build_and_push_new_image "$version"
-    fi
   else
     >&2 echo "INFO: Docker image already exists for Terraform v$version"
   fi

@@ -27,5 +27,21 @@ jobs:
         env:
           ENV_PASSWORD: ${{ secrets.env_file_encryption_key }}
 
-      - name: Run new version monitor
-        run: ./build.sh --alert-only
+      - name: Set up QEMU - arm
+        if: ${{ runner.arch != 'ARM64' }}
+        id: qemu
+        uses: docker/setup-qemu-action@v1
+        with:
+          image: tonistiigi/binfmt:latest
+          platforms: arm64
+
+      - name: Set up QEMU - x86
+        if: ${{ runner.arch != 'X64' || runner.arch != 'X86' }}
+        id: qemu
+        uses: docker/setup-qemu-action@v1
+        with:
+          image: tonistiigi/binfmt:latest
+          platforms: x86_64
+
+      - name: Build new versions
+        run: ./build.sh
